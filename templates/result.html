@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<div class="container">
+
+```
+{% if error %}
+
+<div class="error-box">
+    <h2>{{ error }}</h2>
+</div>
+
+{% else %}
+
+<div class="result-card">
+
+    <h1>Scan Result</h1>
+
+    <div class="result-item">
+        <strong>Website URL:</strong>
+        <p>{{ url }}</p>
+    </div>
+
+    <div class="result-item">
+        <strong>Status:</strong>
+
+        {% if prediction == "Phishing" %}
+            <p class="danger">⚠️ Phishing Website</p>
+        {% else %}
+            <p class="safe">✅ Safe Website</p>
+        {% endif %}
+
+    </div>
+
+    <div class="result-item">
+        <strong>Risk Score:</strong>
+        <p>{{ risk_score }}%</p>
+    </div>
+
+    <div class="progress">
+
+        {% if prediction == "Phishing" %}
+
+        <div
+            class="progress-bar danger-bar"
+            style="width: {{ risk_score }}%;">
+        </div>
+
+        {% else %}
+
+        <div
+            class="progress-bar safe-bar"
+            style="width: {{ risk_score }}%;">
+        </div>
+
+        {% endif %}
+
+    </div>
+
+    <br>
+
+    <a href="/" class="scan-again-btn">
+        Scan Another URL
+    </a>
+
+</div>
+
+{% endif %}
+```
+
+</div>
+
+{% endblock %}
