@@ -2,7 +2,6 @@ from flask import Flask, render_template, request
 from pymongo import MongoClient
 from dotenv import load_dotenv
 from datetime import datetime
-from utils.feature_extractor import extract_features
 
 import os
 import joblib
@@ -17,11 +16,22 @@ app = Flask(__name__)
 
 MONGO_URI = os.getenv("MONGO_URI")
 
-client = MongoClient(MONGO_URI)
+client = None
+scans_collection = None
 
-db = client["phishing_detector"]
-
-scans_collection = db["scans"]
+if not MONGO_URI:
+    print("MONGO_URI is not set. MongoDB operations will be disabled.")
+else:
+    try:
+        client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+        client.admin.command("ping")
+        db = client["phishing_detector"]
+        scans_collection = db["scans"]
+        print("Connected to MongoDB Atlas")
+    except Exception as e:
+        print(f"Error connecting to MongoDB Atlas: {e}")
+        client = None
+        scans_collection = None
 
 # ======================
 # Load ML Model
@@ -45,9 +55,7 @@ def home():
 
 @app.route("/scan", methods=["POST"])
 def scan():
-
     try:
-
         url = request.form.get("url", "").strip()
 
         if not url:
@@ -59,25 +67,14 @@ def scan():
         if model is None:
             return render_template(
                 "result.html",
-                error="Machine Learning model not loaded."
+                error="Machine learning model not loaded."
             )
 
-        features = extract_features(url)
+        prediction = model.predict([url])[0]
+        probabilities = model.predict_proba([url])[0]
+        risk_score = round(max(probabilities) * 100, 2)
 
-        prediction = model.predict([features])[0]
-
-        probabilities = model.predict_proba([features])[0]
-
-        risk_score = round(
-            max(probabilities) * 100,
-            2
-        )
-
-        result = (
-            "Phishing"
-            if prediction == 1
-            else "Safe"
-        )
+        result = "Phishing" if prediction == 1 else "Safe"
 
         scan_data = {
             "url": url,
@@ -86,7 +83,10 @@ def scan():
             "created_at": datetime.utcnow()
         }
 
-        scans_collection.insert_one(scan_data)
+        if scans_collection is not None:
+            scans_collection.insert_one(scan_data)
+        else:
+            print("Warning: MongoDB collection unavailable. Scan record not saved.")
 
         return render_template(
             "result.html",
@@ -94,26 +94,27 @@ def scan():
             prediction=result,
             risk_score=risk_score
         )
-
     except Exception as e:
-
         return render_template(
             "result.html",
-            error=str(e)
+            error=f"An error occurred while scanning the URL: {e}"
         )
+
 
 @app.route("/dashboard")
 def dashboard():
+    if scans_collection is None:
+        return render_template(
+            "dashboard.html",
+            total_scans=0,
+            phishing_count=0,
+            safe_count=0,
+            error="Dashboard unavailable because MongoDB connection is not established."
+        )
 
     total_scans = scans_collection.count_documents({})
-
-    phishing_count = scans_collection.count_documents(
-        {"prediction": "Phishing"}
-    )
-
-    safe_count = scans_collection.count_documents(
-        {"prediction": "Safe"}
-    )
+    phishing_count = scans_collection.count_documents({"prediction": "Phishing"})
+    safe_count = scans_collection.count_documents({"prediction": "Safe"})
 
     return render_template(
         "dashboard.html",
@@ -124,8 +125,4 @@ def dashboard():
 
 
 if __name__ == "__main__":
-    app.run(
-        debug=True,
-        host="0.0.0.0",
-        port=5000
-    )
+    app.run(debug=True, host="0.0.0.0", port=5000)
