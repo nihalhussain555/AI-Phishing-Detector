@@ -1,46 +1,47 @@
 from flask import Blueprint, render_template, request
-import joblib
-
+from services.risk_engine import RiskEngine
+from services.report_generator import ReportGenerator
 from database.mongodb import scans_collection
-from utils.feature_extractor import extract_features
-from utils.helper import (
-    get_current_time,
-    format_prediction,
-    calculate_risk_score
-)
+from datetime import datetime
 
 scan_bp = Blueprint("scan", __name__)
+risk_engine = RiskEngine()
 
-model = joblib.load("model/phishing_model.pkl")
-
-
-@scan_bp.route("/scan", methods=["POST"])
+@scan_bp.route("/scan", methods=["POST", "GET"])
 def scan_url():
+    if request.method == "GET":
+        return render_template("index.html")
+        
+    url = request.form.get("url", "").strip()
+    if not url:
+        return render_template("result.html", error="Please enter a URL.")
 
-    url = request.form["url"]
-
-    features = extract_features(url)
-
-    prediction = model.predict([features])[0]
-
-    probabilities = model.predict_proba([features])[0]
-
-    result = format_prediction(prediction)
-
-    risk_score = calculate_risk_score(probabilities)
-
+    # 1. Run Risk Engine
+    risk_result = risk_engine.analyze_url(url)
+    
+    # 2. Generate Report
+    report = ReportGenerator.generate_scan_report(risk_result)
+    
+    # 3. Save to DB
     scan_data = {
         "url": url,
-        "prediction": result,
-        "risk_score": risk_score,
-        "created_at": get_current_time()
+        "prediction": risk_result["classification"],
+        "risk_score": risk_result["overall_risk_score"],
+        "created_at": datetime.utcnow(),
+        "report": report
     }
-
-    scans_collection.insert_one(scan_data)
-
+    
+    try:
+        scans_collection.insert_one(scan_data)
+    except Exception as e:
+        print(f"Error saving to MongoDB: {e}")
+        
+    # We can pass the new structured report to the template if it's updated,
+    # but for backward compatibility, we pass the basic variables too.
     return render_template(
         "result.html",
         url=url,
-        prediction=result,
-        risk_score=risk_score
+        prediction=risk_result["classification"],
+        risk_score=risk_result["overall_risk_score"],
+        report=report
     )

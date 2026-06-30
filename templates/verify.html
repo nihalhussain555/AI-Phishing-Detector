@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<div class="container">
+    <div class="glass-card">
+        <h1>Fact <span class="gradient-text">Verification</span></h1>
+        
+        <p class="subtitle">
+            Enter a news claim or article excerpt. Our AI will search trusted news sources and verify its authenticity using semantic similarity.
+        </p>
+
+        {% if error %}
+        <div class="error-box" style="margin-bottom: 20px;">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <form action="/verify" method="POST">
+            <div style="display:flex; flex-direction:column; gap:15px; max-width:600px; margin: 0 auto;">
+                <textarea 
+                    name="claim" 
+                    placeholder="Enter the claim you want to verify..."
+                    rows="4"
+                    style="width:100%; padding:15px; border-radius:8px; background:#1e293b; color:white; border:1px solid #475569; font-size:1rem; resize:vertical;"
+                    required></textarea>
+                <button type="submit">Verify Claim</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}

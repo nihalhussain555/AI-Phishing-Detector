@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<div class="container">
+    <div class="result-card">
+        <div class="result-header">
+            <h1>Verification Report</h1>
+            <p style="font-style: italic; color: #94a3b8; margin: 20px 0;">"{{ claim }}"</p>
+            
+            {% set pred = report.prediction %}
+            {% if pred == "True" or pred == "Mostly True" %}
+                <div class="status-badge safe">✅ {{ pred }}</div>
+            {% elif pred == "Partially True" or pred == "Misleading" %}
+                <div class="status-badge suspicious">⚠️ {{ pred }}</div>
+            {% elif pred == "False" %}
+                <div class="status-badge danger">❌ {{ pred }}</div>
+            {% else %}
+                <div class="status-badge" style="background:#334155;">❓ {{ pred }}</div>
+            {% endif %}
+            
+            <div style="margin-top:20px;">
+                <strong>Confidence Score: {{ report.confidence_percentage }}%</strong>
+                <div class="progress">
+                    <div class="progress-bar {% if pred == 'True' or pred == 'Mostly True' %}safe-bar{% elif pred == 'False' %}danger-bar{% else %}suspicious-bar{% endif %}" 
+                         style="width: {{ report.confidence_percentage }}%;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="details-grid">
+            <div class="detail-box" style="grid-column: span 2;">
+                <h3>📑 Closest Matching Source</h3>
+                {% if report.closest_matching_article %}
+                    <a href="{{ report.closest_matching_article }}" target="_blank" style="color:#3b82f6;">{{ report.closest_matching_article }}</a>
+                {% else %}
+                    <p>No matching source found.</p>
+                {% endif %}
+            </div>
+            
+            <div class="detail-box" style="grid-column: span 2;">
+                <h3>📚 Sources Searched</h3>
+                <ul>
+                    {% for source in report.sources_checked %}
+                        <li><a href="{{ source }}" target="_blank" style="color:#cbd5e1;">{{ source }}</a></li>
+                    {% else %}
+                        <li>No sources could be processed.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+
+        <div style="text-align: center;">
+            <a href="/verify" class="btn-link">Verify Another Claim</a>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

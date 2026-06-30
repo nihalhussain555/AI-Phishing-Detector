@@ -3,72 +3,74 @@
 {% block content %}
 
 <div class="container">
-
-```
-{% if error %}
-
-<div class="error-box">
-    <h2>{{ error }}</h2>
-</div>
-
-{% else %}
-
-<div class="result-card">
-
-    <h1>Scan Result</h1>
-
-    <div class="result-item">
-        <strong>Website URL:</strong>
-        <p>{{ url }}</p>
+    {% if error %}
+    <div class="error-box">
+        <h2>{{ error }}</h2>
     </div>
-
-    <div class="result-item">
-        <strong>Status:</strong>
-
-        {% if prediction == "Phishing" %}
-            <p class="danger">⚠️ Phishing Website</p>
-        {% else %}
-            <p class="safe">✅ Safe Website</p>
-        {% endif %}
-
-    </div>
-
-    <div class="result-item">
-        <strong>Risk Score:</strong>
-        <p>{{ risk_score }}%</p>
-    </div>
-
-    <div class="progress">
-
-        {% if prediction == "Phishing" %}
-
-        <div
-            class="progress-bar danger-bar"
-            style="width: {{ risk_score }}%;">
+    {% else %}
+    <div class="result-card">
+        <div class="result-header">
+            <h1>Scan Report</h1>
+            <p>{{ url }}</p>
+            {% if prediction == "Phishing" or prediction == "Dangerous" %}
+                <div class="status-badge danger">⚠️ High Risk / Phishing</div>
+            {% elif prediction == "Suspicious" %}
+                <div class="status-badge suspicious">⚠️ Suspicious</div>
+            {% else %}
+                <div class="status-badge safe">✅ Safe Website</div>
+            {% endif %}
+            
+            <div style="margin-top:20px;">
+                <strong>Overall Risk Score: {{ risk_score }}%</strong>
+                <div class="progress">
+                    <div class="progress-bar {% if risk_score >= 70 %}danger-bar{% elif risk_score >= 40 %}suspicious-bar{% else %}safe-bar{% endif %}" 
+                         style="width: {{ risk_score }}%;"></div>
+                </div>
+            </div>
         </div>
 
-        {% else %}
+        {% if report %}
+        <div class="details-grid">
+            <div class="detail-box">
+                <h3>🔍 Risk Engine Reasoning</h3>
+                <ul>
+                    {% for reason in report.reasoning %}
+                        <li>{{ reason }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            
+            <div class="detail-box">
+                <h3>🌐 Connectivity</h3>
+                <p>Reachable: {% if report.details.connectivity.reachable %}✅{% else %}❌{% endif %}</p>
+                <p>HTTPS: {% if report.details.connectivity.https_enabled %}✅{% else %}❌{% endif %}</p>
+                <p>SSL Valid: {% if report.details.connectivity.ssl_valid %}✅{% else %}❌{% endif %}</p>
+                <p>Response Time: {{ report.details.connectivity.response_time }} ms</p>
+            </div>
 
-        <div
-            class="progress-bar safe-bar"
-            style="width: {{ risk_score }}%;">
+            <div class="detail-box">
+                <h3>🛡️ Trust Analyzer</h3>
+                <p>Trust Score: <strong>{{ report.details.trust_analysis.trust_score }}/100</strong></p>
+                <ul>
+                    {% for exp in report.details.trust_analysis.explanation %}
+                        <li style="color:{% if '+' in exp %}#4ade80{% else %}#f87171{% endif %}">{{ exp }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            
+            <div class="detail-box">
+                <h3>🤖 ML Prediction</h3>
+                <p>Prediction: {{ report.details.ml_prediction.prediction }}</p>
+                <p>Confidence: {{ report.details.ml_prediction.risk_score }}%</p>
+            </div>
         </div>
-
         {% endif %}
 
+        <div style="text-align: center;">
+            <a href="/" class="btn-link">Scan Another URL</a>
+        </div>
     </div>
-
-    <br>
-
-    <a href="/" class="scan-again-btn">
-        Scan Another URL
-    </a>
-
-</div>
-
-{% endif %}
-```
-
+    {% endif %}
 </div>
 
 {% endblock %}

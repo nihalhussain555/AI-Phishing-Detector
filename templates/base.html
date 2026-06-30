@@ -3,27 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Phishing Detector</title>
-
-    <link rel="stylesheet"
-          href="{{ url_for('static', filename='css/style.css') }}">
+    <title>AI Phishing Detector & Fact Verification</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
 
     <nav>
         <div class="logo">
-            AI Phishing Detector
+            <span class="gradient-text">AI Phishing Detector</span>
         </div>
 
         <ul>
-            <li><a href="/">Home</a></li>
+            <li><a href="/">Web Scan</a></li>
+            <li><a href="/verify">Fact Check</a></li>
             <li><a href="/history">History</a></li>
             <li><a href="/dashboard">Dashboard</a></li>
         </ul>
     </nav>
 
-    {% block content %}
-    {% endblock %}
+    <div class="main-wrapper">
+        {% block content %}
+        {% endblock %}
+    </div>
 
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 
