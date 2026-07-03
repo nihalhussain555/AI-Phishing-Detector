@@ -1,0 +1,91 @@
+# ==========================
+# Environment Variables
+# ==========================
+.env
+.env.*
+!.env.example
+
+# ==========================
+# Virtual Environments
+# ==========================
+venv/
+.venv/
+env/
+ENV/
+
+# ==========================
+# Python Cache
+# ==========================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ==========================
+# Build Files
+# ==========================
+build/
+dist/
+*.egg-info/
+
+# ==========================
+# Logs
+# ==========================
+*.log
+logs/
+
+# ==========================
+# Jupyter
+# ==========================
+.ipynb_checkpoints/
+
+# ==========================
+# VS Code
+# ==========================
+.vscode/
+
+# ==========================
+# PyCharm
+# ==========================
+.idea/
+
+# ==========================
+# Operating System Files
+# ==========================
+.DS_Store
+Thumbs.db
+
+# ==========================
+# Project Generated Files
+# ==========================
+screenshots/
+reports/
+temp/
+cache/
+uploads/
+
+# ==========================
+# ML Models (Uncomment if you don't want to upload models)
+# ==========================
+# models/
+# *.pkl
+# *.joblib
+
+# ==========================
+# Local Database Dumps
+# ==========================
+*.sqlite3
+*.db
+*.bak
+
+# ==========================
+# Test & Coverage
+# ==========================
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ==========================
+# Miscellaneous
+# ==========================
+*.tmp
+*.swp
