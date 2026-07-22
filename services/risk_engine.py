@@ -14,6 +14,18 @@ class RiskEngine:
         """Generates the overall risk score and classification."""
         
         conn_result = self.connectivity.check_connectivity(url)
+        if not conn_result.get("reachable"):
+            return {
+                "url": url,
+                "overall_risk_score": 100,
+                "classification": "Unreachable",
+                "reasoning": ["Website is unreachable."],
+                "connectivity_details": conn_result,
+                "trust_details": None,
+                "ml_details": None,
+                "error": "No website exist"
+            }
+            
         trust_result = self.trust.analyze(url)
         ml_result = self.ml_model.predict(url)
         

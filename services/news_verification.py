@@ -1,5 +1,7 @@
 import os
 import re
+
+import time
 import logging
 import urllib.parse
 from typing import List, Dict, Any
@@ -10,7 +12,8 @@ from bs4 import BeautifulSoup
 import trafilatura
 from newspaper import Article
 from sentence_transformers import SentenceTransformer, util
-
+from groq import Groq
+import json
 from utils.source_manager import SourceManager
 
 # ---------------------------------------------------------------------------
@@ -29,29 +32,7 @@ def _is_valid_url(url: str) -> bool:
     except Exception:
         return False
 
-def _extract_keywords(text: str) -> str:
-    """Return a simplified search query consisting of the most relevant nouns.
-    This is a lightweight heuristic – split on whitespace, drop common stopwords,
-    and keep words longer than 3 characters.
-    """
-    stopwords = {
-        "the", "a", "an", "and", "or", "but", "if", "is", "are", "was",
-        "were", "be", "been", "to", "of", "in", "on", "for", "with",
-        "at", "by", "from", "that", "this", "it", "as", "about",
-    }
-    words = re.findall(r"[A-Za-z]+", text)
-    keywords = [w.lower() for w in words if w.lower() not in stopwords and len(w) > 3]
-    # Return the first few unique keywords (max 5) to keep the query concise
-    seen = set()
-    result = []
-    for kw in keywords:
-        if kw not in seen:
-            seen.add(kw)
-            result.append(kw)
-        if len(result) >= 5:
-            break
-    return " ".join(result)
-
+# removed _extract_keywords as per user request to keep input intact
 # ---------------------------------------------------------------------------
 # Service: GNews API – now the preferred primary source
 # ---------------------------------------------------------------------------
@@ -83,25 +64,30 @@ class GNewsService:
             "apikey": self.api_key,
         }
         logger.info("[GNewsService] Requesting %s with params %s", self.ENDPOINT, params)
-        try:
-            resp = self.session.get(self.ENDPOINT, params=params, timeout=10)
-            logger.info("[GNewsService] HTTP %s for URL %s", resp.status_code, resp.url)
-            resp.raise_for_status()
-        except Exception as e:
-            logger.error("[GNewsService] Request failed: %s", e)
-            return []
-        try:
-            data = resp.json()
-        except Exception as e:
-            logger.error("[GNewsService] Failed to parse JSON: %s", e)
-            return []
-        urls = []
-        for article in data.get("articles", []):
-            url = article.get("url")
-            if url and _is_valid_url(url):
-                urls.append(url)
-        logger.info("[GNewsService] Retrieved %d valid URLs", len(urls))
-        return urls
+        # Simple retry logic (2 attempts) with exponential backoff
+        for attempt in range(2):
+            try:
+                resp = self.session.get(self.ENDPOINT, params=params, timeout=20)
+                # If we get a 400 Bad Request, it's likely an API key or query issue – stop retrying
+                if resp.status_code == 400:
+                    logger.error("[GNewsService] 400 Bad Request – likely invalid API key or query. Skipping GNews.")
+                    return []
+                resp.raise_for_status()
+                data = resp.json()
+                urls = []
+                for article in data.get("articles", []):
+                    url = article.get("url")
+                    if url and _is_valid_url(url):
+                        urls.append(url)
+                logger.info("[GNewsService] Retrieved %d valid URLs", len(urls))
+                return urls
+            except Exception as e:
+                logger.error("[GNewsService] Request failed (attempt %d): %s", attempt + 1, e)
+                if attempt < 1:
+                    backoff = 2 ** attempt
+                    logger.info("[GNewsService] Backing off for %d seconds", backoff)
+                    time.sleep(backoff)
+        return []
 
 # ---------------------------------------------------------------------------
 # Service: DuckDuckGo HTML based search – secondary fallback
@@ -203,7 +189,7 @@ class WikipediaService:
             logger.info("[WikipediaService] No search results")
             return []
         title = results[0]["title"]
-        page_url = f"https://en.wikipedia.org/wiki/{urllib.parse.quote_plus(title)}"
+        page_url = f"https://en.wikipedia.org/wiki/{urllib.parse.quote(title.replace(' ', '_'))}"
         logger.info("[WikipediaService] Selected article: %s", page_url)
         return [page_url]
 
@@ -219,34 +205,168 @@ class ExtractionService:
     MIN_LENGTH = 80  # lowered to accept shorter but meaningful articles
 
     @staticmethod
+    def _generate_url_variations(url: str) -> List[str]:
+        """Generate variations of the URL by swapping common space characters in the last path segment."""
+        parsed = urlparse(url)
+        path = parsed.path
+        if not path or path == '/':
+            return [url]
+            
+        segments = path.split('/')
+        last_segment = segments[-1] if segments[-1] else (segments[-2] if len(segments) > 1 else "")
+        
+        if not last_segment:
+            return [url]
+            
+        decoded_segment = urllib.parse.unquote(last_segment)
+        base_words = re.split(r'[-_+ ]', decoded_segment)
+        base_words = [w for w in base_words if w]
+        
+        if len(base_words) <= 1:
+            return [url]
+            
+        variations = []
+        for sep in ['_', '-', '+', '%20']:
+            if sep == '%20':
+                new_segment = urllib.parse.quote(" ".join(base_words))
+            else:
+                new_segment = sep.join([urllib.parse.quote(w) for w in base_words])
+                
+            new_path = path.replace(last_segment, new_segment)
+            new_url = urllib.parse.urlunparse(parsed._replace(path=new_path))
+            if new_url not in variations:
+                variations.append(new_url)
+                
+        # Ensure original url is first
+        if url in variations:
+            variations.remove(url)
+        variations.insert(0, url)
+        
+        return variations
+
+    @staticmethod
     def extract(url: str) -> Any:
         logger.info("[ExtractionService] Extracting URL: %s", url)
-        try:
-            # trafilatura.fetch_url does not accept a timeout kwarg; using default behavior
-            downloaded = trafilatura.fetch_url(url)
-            if downloaded:
-                text = trafilatura.extract(downloaded)
+        
+        url_variations = ExtractionService._generate_url_variations(url)
+        
+        for variant_url in url_variations:
+            try:
+                # trafilatura.fetch_url does not accept a timeout kwarg; using default behavior
+                downloaded = trafilatura.fetch_url(variant_url)
+                if downloaded:
+                    text = trafilatura.extract(downloaded)
+                    if text and len(text) >= ExtractionService.MIN_LENGTH:
+                        logger.debug("[ExtractionService] trafilatura succeeded for %s", variant_url)
+                        return ExtractionService._clean(text)
+            except Exception as e:
+                logger.warning("[ExtractionService] trafilatura error for %s: %s", variant_url, e)
+                
+            try:
+                article = Article(variant_url)
+                article.download()
+                article.parse()
+                text = article.text
                 if text and len(text) >= ExtractionService.MIN_LENGTH:
-                    logger.debug("[ExtractionService] trafilatura succeeded for %s", url)
+                    logger.debug("[ExtractionService] newspaper3k succeeded for %s", variant_url)
                     return ExtractionService._clean(text)
-        except Exception as e:
-            logger.warning("[ExtractionService] trafilatura error for %s: %s", url, e)
-        try:
-            article = Article(url)
-            article.download()
-            article.parse()
-            text = article.text
-            if text and len(text) >= ExtractionService.MIN_LENGTH:
-                logger.debug("[ExtractionService] newspaper3k succeeded for %s", url)
-                return ExtractionService._clean(text)
-        except Exception as e:
-            logger.warning("[ExtractionService] newspaper3k error for %s: %s", url, e)
-        logger.info("[ExtractionService] Extraction failed or text too short for %s", url)
+            except Exception as e:
+                logger.warning("[ExtractionService] newspaper3k error for %s: %s", variant_url, e)
+                
+        logger.info("[ExtractionService] Extraction failed or text too short for all variations of %s", url)
         return None
 
     @staticmethod
     def _clean(raw: str) -> str:
-        return re.sub(r"\s+", " ", raw).strip()
+        # Remove Markdown table separators like |---|---|
+        cleaned = re.sub(r'\|[-|]+', ' ', raw)
+        # Remove multiple pipes (e.g. |||||)
+        cleaned = re.sub(r'\|{2,}', ' ', cleaned)
+        # Remove single pipes used in tables
+        cleaned = cleaned.replace('|', ' ')
+        # Remove wikipedia-style citations like [1], [a]
+        cleaned = re.sub(r'\[\w+\]', '', cleaned)
+        # Collapse multiple spaces and newlines into a single space
+        return re.sub(r"\s+", " ", cleaned).strip()
+
+# ---------------------------------------------------------------------------
+# Service: Groq Insight (Stage 10)
+# ---------------------------------------------------------------------------
+class GroqInsightService:
+    def __init__(self):
+        self.api_key = os.getenv("GROQ_API_KEY")
+        self.model = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+        if self.api_key:
+            # The SDK automatically targets the correct groq endpoint
+            self.client = Groq(api_key=self.api_key)
+        else:
+            self.client = None
+
+    def verify_claim_with_context(self, claim: str, context: str) -> Dict[str, Any]:
+        if not self.client:
+            return {"prediction": "Insufficient Evidence", "confidence": 0, "insight": "GROQ_API_KEY missing. Cannot perform LLM verification."}
+            
+        prompt = f"""You are a professional fact-checking AI. 
+Analyze the following claim using your internal knowledge AND the provided cross-verification search results. 
+If the search results contradict your knowledge, trust the search results if they appear to be from reliable news/wiki sources.
+
+Claim: "{claim}"
+
+Cross-Verification Data: 
+{context}
+
+Respond strictly in the following JSON format without any markdown backticks:
+{{
+    "prediction": "True", "Mostly True", "Partially True", "Misleading", "False", or "Insufficient Evidence",
+    "confidence": <integer between 0 and 100>,
+    "insight": "<2-3 sentences explaining the verdict and how the cross-verification data aligns or contradicts the claim>"
+}}"""
+        
+        try:
+            completion = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+                max_completion_tokens=300,
+                # reasoning_effort="medium",  # optional depending on model
+                stream=False
+            )
+
+            content = completion.choices[0].message.content.strip()
+
+            # Clean any surrounding markdown fences or stray whitespace
+            content = re.sub(r'^```json\s*', '', content)
+            content = re.sub(r'\s*```$', '', content)
+            content = content.strip()
+
+            if not content:
+                logger.warning("[GroqInsightService] Empty response from LLM.")
+                result = {"prediction": "Insufficient Evidence", "confidence": 0, "insight": "LLM returned empty output."}
+            else:
+                # Attempt to parse JSON directly; if that fails, try to extract a JSON block using regex
+                try:
+                    result = json.loads(content)
+                except json.JSONDecodeError:
+                    logger.warning("[GroqInsightService] Direct JSON parse failed – attempting regex extraction.")
+                    json_match = re.search(r"\{.*\}", content, re.DOTALL)
+                    if json_match:
+                        try:
+                            result = json.loads(json_match.group(0))
+                        except json.JSONDecodeError as e2:
+                            logger.error("[GroqInsightService] Regex JSON extraction also failed: %s", e2)
+                            result = {"prediction": "Insufficient Evidence", "confidence": 0, "insight": f"Failed to parse LLM response: {e2}"}
+                    else:
+                        logger.error("[GroqInsightService] No JSON found in LLM response.")
+                        result = {"prediction": "Insufficient Evidence", "confidence": 0, "insight": "LLM returned non‑JSON output.", "raw_output": content}
+
+            return {
+                "prediction": result.get("prediction", "Insufficient Evidence"),
+                "confidence": int(result.get("confidence", 0)),
+                "insight": result.get("insight", "")
+            }
+        except Exception as e:
+            logger.error("[GroqInsightService] Failed to verify: %s", e)
+            return {"prediction": "Insufficient Evidence", "confidence": 0, "insight": f"LLM Error: {e}"}
 
 # ---------------------------------------------------------------------------
 # Service: Deduplication (stage 6)
@@ -272,41 +392,31 @@ class DeduplicationService:
 # ---------------------------------------------------------------------------
 class EmbeddingService:
     def __init__(self):
-        logger.info("[EmbeddingService] Loading SentenceTransformer model")
+        # Ensure HF token is set for loading SentenceTransformer models
+        hf_token = os.getenv("HF_TOKEN")
+        if hf_token:
+            os.environ["HF_HUB_TOKEN"] = hf_token
+        else:
+            logger.warning("[EmbeddingService] HF_TOKEN not set – may hit rate limits when loading models.")
+    def _load_model(self):
+        # Ensure HF token is set for loading SentenceTransformer models
+        hf_token = os.getenv("HF_TOKEN")
+        if hf_token:
+            os.environ["HF_HUB_TOKEN"] = hf_token
+        else:
+            logger.warning("[EmbeddingService] HF_TOKEN not set – may hit rate limits when loading models.")
         self.model = SentenceTransformer("all-MiniLM-L6-v2")
-
     def embed_claim(self, claim: str):
+        if not hasattr(self, "model"):
+            self._load_model()
         return self.model.encode(claim, convert_to_tensor=True)
 
     def embed_articles(self, texts: List[str]):
+        if not hasattr(self, "model"):
+            self._load_model()
         return self.model.encode(texts, convert_to_tensor=True)
 
-class VerificationEngine:
-    THRESHOLDS = {
-        "True": 0.75,
-        "Mostly True": 0.60,
-        "Partially True": 0.45,
-        "Misleading": 0.30,
-    }
-
-    def __init__(self, trust_weight: float):
-        self.trust_weight = trust_weight
-
-    def decide(self, best_score: float, avg_score: float) -> Dict[str, Any]:
-        weighted = (best_score * 0.6) + (avg_score * 0.2) + (self.trust_weight * 0.2)
-        prediction = "Insufficient Evidence"
-        for label, cutoff in self.THRESHOLDS.items():
-            if weighted > cutoff:
-                prediction = label
-                break
-        reason = (
-            f"Weighted score {weighted:.2f} leads to {prediction}."
-            if prediction != "Insufficient Evidence"
-            else "Aggregated similarity too low after trust weighting."
-        )
-        confidence = round(weighted * 100, 2)
-        return {"prediction": prediction, "confidence": confidence, "reason": reason, "weighted_score": weighted}
-
+# VerificationEngine removed. LLM handles prediction logic natively.
 # ---------------------------------------------------------------------------
 # Facade Service – orchestrates the pipeline (stages 1‑9)
 # ---------------------------------------------------------------------------
@@ -321,10 +431,11 @@ class NewsVerificationService:
         self.extraction_service = ExtractionService()
         self.dedup_service = DeduplicationService()
         self.embedding_service = EmbeddingService()
+        self.groq_service = GroqInsightService()
 
     def verify_claim(self, claim: str) -> Dict[str, Any]:
         logger.info("[NewsVerification] Starting verification for claim: %s", claim)
-        search_query = _extract_keywords(claim) or claim
+        search_query = claim
         logger.info("[NewsVerification] Optimised search query: %s", search_query)
         # Stage 1 – GNews primary
         urls = self.gnews_service.fetch(search_query)
@@ -356,31 +467,61 @@ class NewsVerificationService:
         logger.info("[NewsVerification] %d unique articles after deduplication.", len(extracted))
         # Stage 7 – Semantic Verification
         claim_emb = self.embedding_service.embed_claim(claim)
-        article_texts = [a["text"] for a in extracted]
-        article_embs = self.embedding_service.embed_articles(article_texts)
-        scores = util.cos_sim(claim_emb, article_embs)[0].tolist()
-        for i, s in enumerate(scores):
-            extracted[i]["similarity"] = s
+        
+        for a in extracted:
+            text = a["text"]
+            # Split into sentences using a simple regex
+            sentences = re.split(r'(?<=[.!?]) +', text)
+            
+            chunks = []
+            chunk_size = 3
+            if len(sentences) <= chunk_size:
+                chunks.append((text, 0)) # store chunk text and its starting index
+            else:
+                # Limit to first 100 chunks to prevent performance issues on huge pages
+                for i in range(0, min(len(sentences) - chunk_size + 1, 100)):
+                    chunks.append((" ".join(sentences[i:i+chunk_size]), i))
+                    
+            if not chunks:
+                chunks = [(text[:1500], 0)]
+                
+            chunk_texts = [c[0] for c in chunks]
+            chunk_embs = self.embedding_service.embed_articles(chunk_texts)
+            chunk_scores = util.cos_sim(claim_emb, chunk_embs)[0].tolist()
+            
+            best_idx = chunk_scores.index(max(chunk_scores))
+            best_score_for_article = chunk_scores[best_idx]
+            start_sentence_idx = chunks[best_idx][1]
+            
+            # For the summary, grab a slightly wider window (e.g. 5 sentences) for better context
+            summary_start = max(0, start_sentence_idx - 1)
+            summary_end = start_sentence_idx + chunk_size + 1
+            best_snippet = " ".join(sentences[summary_start:summary_end])
+            
+            a["similarity"] = best_score_for_article
+            a["best_snippet"] = best_snippet
+
         extracted.sort(key=lambda x: x["similarity"], reverse=True)
         best_article = extracted[0]
         best_score = best_article["similarity"]
-        top_k = min(3, len(extracted))
-        avg_score = sum(a["similarity"] for a in extracted[:top_k]) / top_k
-        # Stage 8 – Prediction
-        engine = VerificationEngine(best_article["trust_weight"])
-        decision = engine.decide(best_score, avg_score)
-        # Stage 9 – Explanation
-        support = [a["url"] for a in extracted if a["similarity"] > 0.5]
-        contradict = [a["url"] for a in extracted if a["similarity"] <= 0.3]
+        
+        # Stage 8 – Groq LLM Verification with Cross-Verification Data
+        context_data = ""
+        for i, a in enumerate(extracted[:3]):
+            context_data += f"[Source {i+1}]: {a['best_snippet']}\n"
+            
+        llm_result = self.groq_service.verify_claim_with_context(claim, context_data)
+        
+        sources = [{"url": a["url"], "text": a["best_snippet"], "similarity": a["similarity"]} for a in extracted]
         return {
-            "prediction": decision["prediction"],
-            "confidence": decision["confidence"],
+            "prediction": llm_result["prediction"],
+            "confidence": llm_result["confidence"],
             "similarity_score": round(best_score, 4),
             "closest_article": best_article["url"],
-            "supporting_sources": support,
-            "contradicting_sources": contradict,
-            "evidence_summary": best_article["text"][:400] + "...",
-            "reason": decision["reason"],
+            "sources_checked": sources,
+            "evidence_summary": best_article["best_snippet"],
+            "reason": llm_result["insight"],
+            "llm_insight": llm_result["insight"],
         }
 
     def _insufficient_evidence(self, msg: str) -> Dict[str, Any]:
@@ -390,8 +531,8 @@ class NewsVerificationService:
             "confidence": 0,
             "similarity_score": 0,
             "closest_article": None,
-            "supporting_sources": [],
-            "contradicting_sources": [],
+            "sources_checked": [],
             "evidence_summary": "",
             "reason": msg,
+            "llm_insight": "",
         }

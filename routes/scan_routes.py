@@ -19,6 +19,9 @@ def scan_url():
     # 1. Run Risk Engine
     risk_result = risk_engine.analyze_url(url)
     
+    if risk_result.get("error") == "No website exist":
+        return render_template("result.html", error="No website exist")
+
     # 2. Generate Report
     report = ReportGenerator.generate_scan_report(risk_result)
     

@@ -38,11 +38,30 @@
                 {% endif %}
             </div>
             
+            {% if report.llm_insight %}
+            <div class="detail-box" style="grid-column: span 2; background: linear-gradient(145deg, #1e293b, #0f172a); border: 1px solid #3b82f6;">
+                <h3>🤖 AI Analysis & Insights</h3>
+                <p style="font-size: 1.05em; color: #f8fafc; line-height: 1.6; font-weight: 500;">{{ report.llm_insight }}</p>
+            </div>
+            {% endif %}
+            
+            {% if report.evidence_summary %}
             <div class="detail-box" style="grid-column: span 2;">
-                <h3>📚 Sources Searched</h3>
-                <ul>
+                <h3>💡 Trusted Fact</h3>
+                <p style="white-space: pre-wrap; font-size: 0.95em; color: #e2e8f0; line-height: 1.6;">{{ report.evidence_summary }}</p>
+            </div>
+            {% endif %}
+            
+            <div class="detail-box" style="grid-column: span 2;">
+                <h3>📚 Sources and Scraped Content</h3>
+                <ul style="list-style-type: none; padding-left: 0;">
                     {% for source in report.sources_checked %}
-                        <li><a href="{{ source }}" target="_blank" style="color:#cbd5e1;">{{ source }}</a></li>
+                        <li style="margin-bottom: 20px;">
+                            <a href="{{ source.url }}" target="_blank" style="color:#cbd5e1; font-weight: bold;">{{ source.url }}</a>
+                            <div style="margin-top: 10px; padding: 15px; background: rgba(0,0,0,0.2); border-left: 3px solid #3b82f6; border-radius: 4px;">
+                                <p style="font-size: 0.9em; color: #94a3b8; margin: 0; max-height: 200px; overflow-y: auto; white-space: pre-wrap;">{{ source.text }}</p>
+                            </div>
+                        </li>
                     {% else %}
                         <li>No sources could be processed.</li>
                     {% endfor %}

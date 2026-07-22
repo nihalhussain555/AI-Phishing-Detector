@@ -30,5 +30,7 @@ class ReportGenerator:
             "prediction": verification_result.get("prediction"),
             "confidence_percentage": verification_result.get("confidence"),
             "closest_matching_article": verification_result.get("closest_article"),
-            "sources_checked": verification_result.get("supporting_sources")
+            "evidence_summary": verification_result.get("evidence_summary"),
+            "llm_insight": verification_result.get("llm_insight"),
+            "sources_checked": verification_result.get("sources_checked", [])
         }
