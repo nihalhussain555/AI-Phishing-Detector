@@ -56,3 +56,4 @@ tqdm>=4.66.0
 # Typing Support
 # ===========================
 typing_extensions>=4.10.0
+gunicorn>=21.0.0
