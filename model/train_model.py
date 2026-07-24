@@ -15,7 +15,7 @@ from xgboost import XGBClassifier
 # =========================
 
 BASE_DIR = os.path.dirname(__file__)
-
+#78787
 DATASET_PATH = os.path.join(
     BASE_DIR,
     "dataset.csv"
