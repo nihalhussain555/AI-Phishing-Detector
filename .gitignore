@@ -90,5 +90,4 @@ htmlcov/
 # ==========================
 *.tmp
 *.swp
-model\pre_process.py
-model\train_model.py
+model/
