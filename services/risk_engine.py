@@ -1,6 +1,6 @@
 from services.connectivity_service import ConnectivityService
 from services.trust_service import TrustService
-from ml.phishing_ml import PhishingML
+from services.phishing_ml import PhishingML
 
 class RiskEngine:
     """Module 4: Risk Engine that combines all factors to generate a final Risk Score."""
