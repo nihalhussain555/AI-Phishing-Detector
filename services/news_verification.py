@@ -11,7 +11,7 @@ import requests
 from bs4 import BeautifulSoup
 import trafilatura
 from newspaper import Article
-from sentence_transformers import SentenceTransformer, util
+import pickle
 from groq import Groq
 import json
 from utils.source_manager import SourceManager
@@ -405,7 +405,10 @@ class EmbeddingService:
             os.environ["HF_HUB_TOKEN"] = hf_token
         else:
             logger.warning("[EmbeddingService] HF_TOKEN not set – may hit rate limits when loading models.")
-        self.model = SentenceTransformer("all-MiniLM-L6-v2")
+        import pickle
+        model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "model", "phishing_model.pkl")
+        with open(model_path, "rb") as f:
+            self.model = pickle.load(f)
     def embed_claim(self, claim: str):
         if not hasattr(self, "model"):
             self._load_model()

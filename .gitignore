@@ -2,7 +2,6 @@
 # Environment Variables
 # ==========================
 .env
-
 .env.*
 !.env.example
 
@@ -27,6 +26,7 @@ __pycache__/
 build/
 dist/
 *.egg-info/
+pip-wheel-metadata/
 
 # ==========================
 # Logs
@@ -35,18 +35,15 @@ dist/
 logs/
 
 # ==========================
-# Jupyter
+# Jupyter Notebooks
 # ==========================
 .ipynb_checkpoints/
+*.ipynb
 
 # ==========================
-# VS Code
+# IDE Settings
 # ==========================
 .vscode/
-
-# ==========================
-# PyCharm
-# ==========================
 .idea/
 
 # ==========================
@@ -65,29 +62,50 @@ cache/
 uploads/
 
 # ==========================
-# ML Models (Uncomment if you don't want to upload models)
+# Training Files (Not Needed in Production)
 # ==========================
-# models/
+training/
+datasets/
+dataset/
+data/
+notebooks/
+
+# Uncomment ONLY if you DO NOT want to upload your model
 # *.pkl
 # *.joblib
 
 # ==========================
-# Local Database Dumps
+# Local Databases
 # ==========================
 *.sqlite3
 *.db
 *.bak
 
 # ==========================
-# Test & Coverage
+# Testing & Coverage
 # ==========================
 .pytest_cache/
 .coverage
 htmlcov/
+.coverage.*
 
 # ==========================
 # Miscellaneous
 # ==========================
 *.tmp
 *.swp
-model/
+*.swo
+*.orig
+
+# ==========================
+# Node.js (if frontend is inside same repo)
+# ==========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ==========================
+# Render
+# ==========================
+.render/
