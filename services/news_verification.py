@@ -15,6 +15,7 @@ import pickle
 from groq import Groq
 import json
 from utils.source_manager import SourceManager
+from sentence_transformers import util
 
 # ---------------------------------------------------------------------------
 # Logging configuration (Flask app can configure handlers as needed)

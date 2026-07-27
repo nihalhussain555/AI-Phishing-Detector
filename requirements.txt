@@ -8,23 +8,29 @@ itsdangerous==2.2.0
 click==8.2.1
 blinker==1.9.0
 
+python-dotenv==1.1.1
+
 pymongo==4.13.2
 dnspython==2.7.0
 
-python-dotenv==1.1.1
+numpy==2.2.6
+pandas==2.2.3
+scikit-learn==1.6.1
+joblib==1.4.2
+threadpoolctl==3.5.0
 
-numpy==2.3.1
-pandas==2.3.0
-scikit-learn==1.7.0
-joblib==1.5.1
-threadpoolctl==3.6.0
+xgboost==2.1.4
+imbalanced-learn==0.13.0
 
 requests==2.32.4
-beautifulsoup4==4.15.0
-lxml==6.1.1
+beautifulsoup4==4.13.4
+lxml==6.0.0
+lxml_html_clean==0.4.2
 trafilatura==2.0.0
+newspaper3k==0.2.8
 
 python-whois==0.9.6
 tldextract==5.3.0
 
 groq==0.31.0
+sentence-transformers==2.2.2

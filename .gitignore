@@ -50,6 +50,8 @@ logs/
 # Operating System Files
 # ==========================
 .DS_Store
+model/pre_process.py
+model/train_model.py
 Thumbs.db
 
 # ==========================
