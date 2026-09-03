@@ -3,19 +3,23 @@
 {% block content %}
 
 <div class="container">
-    <div class="glass-card">
+    <div class="glass-card fade-in">
         <h1>Website Security <span class="gradient-text">Scanner</span></h1>
         
         <p class="subtitle">
-            Enter a URL to analyze its connectivity, trust factors, and AI-predicted risk level.
+            Just type a website name or domain — no "https://" needed. We'll figure out the rest.
         </p>
 
         <form action="/scan" method="POST">
             <div class="input-group">
                 <input
-                    type="url"
+                    type="text"
                     name="url"
-                    placeholder="https://example.com"
+                    placeholder="example.com"
+                    autocomplete="off"
+                    autocapitalize="off"
+                    spellcheck="false"
+                    inputmode="url"
                     required
                 >
                 <button type="submit">Scan Now</button>

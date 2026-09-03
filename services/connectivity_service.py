@@ -10,7 +10,7 @@ class ConnectivityService:
     def check_connectivity(self, url):
         """Runs connectivity checks on the given URL."""
         if not url.startswith(('http://', 'https://')):
-            url = 'http://' + url
+            url = 'https://' + url
             
         parsed_url = urlparse(url)
         domain = parsed_url.netloc

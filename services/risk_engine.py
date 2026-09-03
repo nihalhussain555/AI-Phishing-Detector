@@ -19,14 +19,39 @@ class RiskEngine:
                 "url": url,
                 "overall_risk_score": 100,
                 "classification": "Unreachable",
-                "reasoning": ["Website is unreachable."],
+                "reasoning": [conn_result.get("error_message") or "Website is unreachable."],
                 "connectivity_details": conn_result,
                 "trust_details": None,
-                "ml_details": None,
-                "error": "No website exist"
+                "ml_details": None
             }
             
         trust_result = self.trust.analyze(url)
+
+        # If the page is a 404/dead page or a parked/placeholder domain,
+        # say so clearly instead of letting it fall through to a generic
+        # "Safe" score - there's no real website here to judge as safe.
+        if trust_result.get("details", {}).get("not_found"):
+            return {
+                "url": url,
+                "overall_risk_score": 100,
+                "classification": "Not Found",
+                "reasoning": [f"The page responded with HTTP {trust_result['details'].get('http_status')} - it doesn't exist."],
+                "connectivity_details": conn_result,
+                "trust_details": trust_result,
+                "ml_details": None
+            }
+
+        if trust_result.get("details", {}).get("is_parked"):
+            return {
+                "url": url,
+                "overall_risk_score": 90,
+                "classification": "No Real Website",
+                "reasoning": ["This domain appears to be parked, for sale, or has no real content - it isn't an active website."],
+                "connectivity_details": conn_result,
+                "trust_details": trust_result,
+                "ml_details": None
+            }
+
         ml_result = self.ml_model.predict(url)
         
         # Calculate final risk score (0-100)

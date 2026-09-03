@@ -20,11 +20,17 @@ def verify_claim():
     claim = request.form.get("claim", "").strip()
     if not claim:
         return render_template("verify.html", error="Please enter a claim.")
-        
+
     # 1. Verify Claim
-    verification_result = news_verifier.verify_claim(claim)
-    
+    try:
+        verification_result = news_verifier.verify_claim(claim)
+    except Exception as e:
+        return render_template(
+            "verify.html",
+            error=f"Something went wrong while verifying this claim: {e}"
+        )
+
     # 2. Generate Report
     report = ReportGenerator.generate_news_report(claim, verification_result)
-    
+
     return render_template("verify_result.html", report=report, claim=claim)

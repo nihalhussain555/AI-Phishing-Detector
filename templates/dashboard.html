@@ -5,26 +5,52 @@
 <div class="container">
 
     <h1>Dashboard</h1>
+    <p class="subtitle">A live overview of every website you've scanned.</p>
 
-    <div class="cards">
+    {% if db_error %}
+    <div class="error-box" style="max-width:600px;margin:20px auto 0;">
+        {{ db_error }}
+    </div>
+    {% endif %}
 
-        <div class="card">
+    {% if total_scans and total_scans > 0 %}
+    <div class="stats-grid fade-in">
+
+        <div class="stat-card total">
+            <div class="stat-icon">📊</div>
             <h2>{{ total_scans }}</h2>
             <p>Total Scans</p>
         </div>
 
-        <div class="card">
+        <div class="stat-card safe">
+            <div class="stat-icon">✅</div>
             <h2>{{ safe_count }}</h2>
             <p>Safe Websites</p>
         </div>
 
-        <div class="card">
+        <div class="stat-card suspicious">
+            <div class="stat-icon">⚠️</div>
+            <h2>{{ suspicious_count }}</h2>
+            <p>Suspicious Websites</p>
+        </div>
+
+        <div class="stat-card danger">
+            <div class="stat-icon">🚨</div>
             <h2>{{ phishing_count }}</h2>
-            <p>Phishing Websites</p>
+            <p>Phishing / Dangerous</p>
         </div>
 
     </div>
+    {% elif not db_error %}
+    <div class="empty-state">
+        <p>No scans yet. Run your first scan from the <a href="/" class="btn-link" style="margin-top:15px;">Web Scan</a> page.</p>
+    </div>
+    {% endif %}
 
 </div>
 
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 {% endblock %}

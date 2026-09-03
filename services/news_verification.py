@@ -10,12 +10,11 @@ from urllib.parse import urlparse
 import requests
 from bs4 import BeautifulSoup
 import trafilatura
-from newspaper import Article
-import pickle
 from groq import Groq
 import json
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 from utils.source_manager import SourceManager
-from sentence_transformers import util
 
 # ---------------------------------------------------------------------------
 # Logging configuration (Flask app can configure handlers as needed)
@@ -199,9 +198,16 @@ class WikipediaService:
 # ---------------------------------------------------------------------------
 class ExtractionService:
     """Extracts readable text from a URL.
-    Tries trafilatura first, then newspaper3k as a fallback.
-    Returns cleaned text or None.
+    Tries trafilatura first, then falls back to a simple BeautifulSoup
+    paragraph scrape. Returns cleaned text or None.
     """
+
+    _HEADERS = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+        )
+    }
 
     MIN_LENGTH = 80  # lowered to accept shorter but meaningful articles
 
@@ -264,15 +270,18 @@ class ExtractionService:
                 logger.warning("[ExtractionService] trafilatura error for %s: %s", variant_url, e)
                 
             try:
-                article = Article(variant_url)
-                article.download()
-                article.parse()
-                text = article.text
+                resp = requests.get(variant_url, headers=ExtractionService._HEADERS, timeout=10)
+                resp.raise_for_status()
+                soup = BeautifulSoup(resp.content, "lxml")
+                for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
+                    tag.decompose()
+                paragraphs = [p.get_text(" ", strip=True) for p in soup.find_all("p")]
+                text = " ".join(p for p in paragraphs if p)
                 if text and len(text) >= ExtractionService.MIN_LENGTH:
-                    logger.debug("[ExtractionService] newspaper3k succeeded for %s", variant_url)
+                    logger.debug("[ExtractionService] BeautifulSoup fallback succeeded for %s", variant_url)
                     return ExtractionService._clean(text)
             except Exception as e:
-                logger.warning("[ExtractionService] newspaper3k error for %s: %s", variant_url, e)
+                logger.warning("[ExtractionService] BeautifulSoup fallback error for %s: %s", variant_url, e)
                 
         logger.info("[ExtractionService] Extraction failed or text too short for all variations of %s", url)
         return None
@@ -303,24 +312,49 @@ class GroqInsightService:
         else:
             self.client = None
 
-    def verify_claim_with_context(self, claim: str, context: str) -> Dict[str, Any]:
+    def verify_claim_with_context(self, claim: str, context: str, source_count: int = 0, trusted_count: int = 0) -> Dict[str, Any]:
         if not self.client:
             return {"prediction": "Insufficient Evidence", "confidence": 0, "insight": "GROQ_API_KEY missing. Cannot perform LLM verification."}
-            
-        prompt = f"""You are a professional fact-checking AI. 
-Analyze the following claim using your internal knowledge AND the provided cross-verification search results. 
-If the search results contradict your knowledge, trust the search results if they appear to be from reliable news/wiki sources.
+
+        corroboration_note = ""
+        if trusted_count == 0:
+            corroboration_note = (
+                "\nIMPORTANT: none of the sources below are from a known, reliable outlet - "
+                "they are unverified. Do not report high confidence (above ~60) purely on "
+                "unverified sources; lean toward 'Insufficient Evidence' unless the claim is "
+                "something you are independently confident about from general knowledge."
+            )
+        elif source_count == 1:
+            corroboration_note = (
+                "\nNote: only one source was found. A single source, even a reliable one, is "
+                "weaker corroboration than multiple independent sources agreeing - factor this "
+                "into your confidence score rather than treating it as fully settled."
+            )
+
+        prompt = f"""You are a rigorous, skeptical professional fact-checker. Your job is to
+verify the claim below the way a real fact-checking organization would: weigh
+source reliability, look for corroboration across independent sources, and
+resist over-stating confidence when evidence is thin.
 
 Claim: "{claim}"
 
-Cross-Verification Data: 
+Cross-Verification Data (sources are explicitly labeled as "Trusted" or
+"Unverified" - weigh Trusted sources far more heavily than Unverified ones):
 {context}
+{corroboration_note}
+
+Guidelines:
+- "True"/"False": use only when evidence directly and clearly confirms or contradicts the claim.
+- "Mostly True"/"Partially True": the claim is broadly correct but has a minor inaccuracy, missing context, or exaggeration.
+- "Misleading": technically not false, but framed in a way that gives a false impression.
+- "Insufficient Evidence": the sources don't actually address the claim, or are too unreliable/thin to judge - prefer this over guessing.
+- confidence should reflect how strong and corroborated the evidence actually is, not just how the claim "feels".
 
 Respond strictly in the following JSON format without any markdown backticks:
 {{
     "prediction": "True", "Mostly True", "Partially True", "Misleading", "False", or "Insufficient Evidence",
     "confidence": <integer between 0 and 100>,
-    "insight": "<2-3 sentences explaining the verdict and how the cross-verification data aligns or contradicts the claim>"
+    "insight": "<2-3 sentences explaining the verdict, citing which source(s) it relies on, and noting reliability/corroboration>"
 }}"""
         
         try:
@@ -328,12 +362,38 @@ Respond strictly in the following JSON format without any markdown backticks:
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.2,
-                max_completion_tokens=300,
-                # reasoning_effort="medium",  # optional depending on model
+                max_completion_tokens=1024,
+                # gpt-oss models are reasoning models: their internal "thinking"
+                # tokens are drawn from the SAME max_completion_tokens budget as
+                # the final answer. With a low budget and default/medium
+                # reasoning effort, the model can burn through the whole budget
+                # thinking and return an EMPTY final answer (finish_reason
+                # "length"). reasoning_effort="low" keeps more of the budget
+                # free for the actual JSON response.
+                reasoning_effort="low",
+                # Forces valid JSON output directly, instead of relying on
+                # regex-extracting JSON out of free-form text.
+                response_format={"type": "json_object"},
                 stream=False
             )
 
-            content = completion.choices[0].message.content.strip()
+            finish_reason = completion.choices[0].finish_reason
+            content = (completion.choices[0].message.content or "").strip()
+
+            if not content and finish_reason == "length":
+                # Still ran out of room - retry once with a much bigger
+                # budget rather than silently failing.
+                logger.warning("[GroqInsightService] Empty output (ran out of tokens) - retrying with a larger budget.")
+                completion = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.2,
+                    max_completion_tokens=2048,
+                    reasoning_effort="low",
+                    response_format={"type": "json_object"},
+                    stream=False
+                )
+                content = (completion.choices[0].message.content or "").strip()
 
             # Clean any surrounding markdown fences or stray whitespace
             content = re.sub(r'^```json\s*', '', content)
@@ -389,36 +449,70 @@ class DeduplicationService:
         return unique
 
 # ---------------------------------------------------------------------------
-# Service: Embedding & Verification (unchanged)
+# Service: Text similarity (stage 7)
 # ---------------------------------------------------------------------------
-class EmbeddingService:
-    def __init__(self):
-        # Ensure HF token is set for loading SentenceTransformer models
-        hf_token = os.getenv("HF_TOKEN")
-        if hf_token:
-            os.environ["HF_HUB_TOKEN"] = hf_token
-        else:
-            logger.warning("[EmbeddingService] HF_TOKEN not set – may hit rate limits when loading models.")
-    def _load_model(self):
-        # Ensure HF token is set for loading SentenceTransformer models
-        hf_token = os.getenv("HF_TOKEN")
-        if hf_token:
-            os.environ["HF_HUB_TOKEN"] = hf_token
-        else:
-            logger.warning("[EmbeddingService] HF_TOKEN not set – may hit rate limits when loading models.")
-        import pickle
-        model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "model", "phishing_model.pkl")
-        with open(model_path, "rb") as f:
-            self.model = pickle.load(f)
-    def embed_claim(self, claim: str):
-        if not hasattr(self, "model"):
-            self._load_model()
-        return self.model.encode(claim, convert_to_tensor=True)
+class TextSimilarityService:
+    """Lightweight claim/article similarity scoring using TF-IDF + cosine
+    similarity. Deliberately avoids heavyweight ML dependencies (torch /
+    sentence-transformers) so the app stays within Render free-tier RAM
+    limits.
+    """
 
-    def embed_articles(self, texts: List[str]):
-        if not hasattr(self, "model"):
-            self._load_model()
-        return self.model.encode(texts, convert_to_tensor=True)
+    def score(self, claim: str, texts: List[str]) -> List[float]:
+        """Returns a cosine-similarity score (0-1) for `claim` against each
+        text in `texts`, in the same order."""
+        if not texts:
+            return []
+        corpus = [claim] + texts
+        vectorizer = TfidfVectorizer(stop_words="english", max_features=5000)
+        try:
+            matrix = vectorizer.fit_transform(corpus)
+        except ValueError:
+            # Happens if the corpus is empty after stop-word removal
+            return [0.0] * len(texts)
+        claim_vec = matrix[0:1]
+        text_vecs = matrix[1:]
+        sims = cosine_similarity(claim_vec, text_vecs)[0]
+        return sims.tolist()
+
+    def score_grouped(self, claim: str, groups: List[List[str]]) -> List[List[float]]:
+        """Same idea as score(), but scores multiple groups of chunks (e.g.
+        one group per article) against the claim using a SINGLE shared
+        TF-IDF vocabulary fit across the claim + every chunk from every
+        group.
+
+        This matters: fitting a fresh TfidfVectorizer per article (the old
+        behaviour) gives each article its own IDF weighting, so a
+        similarity score of 0.4 from article A is not actually comparable
+        to a 0.4 from article B - the "best matching article" pick was
+        effectively arbitrary. With one shared vocabulary, every score is
+        on the same scale and cross-article ranking is meaningful.
+        """
+        if not groups or not any(groups):
+            return [[] for _ in groups]
+
+        all_chunks = []
+        boundaries = []  # (start, end) index into all_chunks for each group
+        for group in groups:
+            start = len(all_chunks)
+            all_chunks.extend(group)
+            boundaries.append((start, len(all_chunks)))
+
+        if not all_chunks:
+            return [[] for _ in groups]
+
+        corpus = [claim] + all_chunks
+        vectorizer = TfidfVectorizer(stop_words="english", max_features=8000)
+        try:
+            matrix = vectorizer.fit_transform(corpus)
+        except ValueError:
+            return [[0.0] * len(g) for g in groups]
+
+        claim_vec = matrix[0:1]
+        chunk_vecs = matrix[1:]
+        all_sims = cosine_similarity(claim_vec, chunk_vecs)[0]
+
+        return [all_sims[start:end].tolist() for start, end in boundaries]
 
 # VerificationEngine removed. LLM handles prediction logic natively.
 # ---------------------------------------------------------------------------
@@ -434,7 +528,7 @@ class NewsVerificationService:
         self.wikipedia_service = WikipediaService()
         self.extraction_service = ExtractionService()
         self.dedup_service = DeduplicationService()
-        self.embedding_service = EmbeddingService()
+        self.similarity_service = TextSimilarityService()
         self.groq_service = GroqInsightService()
 
     def verify_claim(self, claim: str) -> Dict[str, Any]:
@@ -463,60 +557,78 @@ class NewsVerificationService:
                 extracted.append({
                     "url": url,
                     "text": text,
-                    "trust_weight": 1.0 if self.source_manager.is_trusted(url) else 0.6,
+                    "trust_weight": 1.0 if self.source_manager.is_trusted(url) else 0.5,
                 })
         if len(extracted) < self.MIN_ARTICLES:
             return self._insufficient_evidence("Extraction yielded too few usable articles.")
         extracted = self.dedup_service.deduplicate_content(extracted)
         logger.info("[NewsVerification] %d unique articles after deduplication.", len(extracted))
-        # Stage 7 – Semantic Verification
-        claim_emb = self.embedding_service.embed_claim(claim)
-        
+        # Stage 7 – Semantic Verification (shared vocabulary across all
+        # articles, so similarity scores are comparable to each other -
+        # see TextSimilarityService.score_grouped docstring)
+        article_chunks = []  # list of (chunks list, starting-sentence-index list) per article
+        article_sentences = []
         for a in extracted:
             text = a["text"]
-            # Split into sentences using a simple regex
             sentences = re.split(r'(?<=[.!?]) +', text)
-            
+            article_sentences.append(sentences)
+
             chunks = []
             chunk_size = 3
             if len(sentences) <= chunk_size:
-                chunks.append((text, 0)) # store chunk text and its starting index
+                chunks.append((text, 0))
             else:
-                # Limit to first 100 chunks to prevent performance issues on huge pages
                 for i in range(0, min(len(sentences) - chunk_size + 1, 100)):
-                    chunks.append((" ".join(sentences[i:i+chunk_size]), i))
-                    
+                    chunks.append((" ".join(sentences[i:i + chunk_size]), i))
+
             if not chunks:
                 chunks = [(text[:1500], 0)]
-                
-            chunk_texts = [c[0] for c in chunks]
-            chunk_embs = self.embedding_service.embed_articles(chunk_texts)
-            chunk_scores = util.cos_sim(claim_emb, chunk_embs)[0].tolist()
-            
-            best_idx = chunk_scores.index(max(chunk_scores))
-            best_score_for_article = chunk_scores[best_idx]
+
+            article_chunks.append(chunks)
+
+        groups = [[c[0] for c in chunks] for chunks in article_chunks]
+        grouped_scores = self.similarity_service.score_grouped(claim, groups)
+
+        for a, chunks, scores, sentences in zip(extracted, article_chunks, grouped_scores, article_sentences):
+            if not scores:
+                scores = [0.0]
+
+            best_idx = scores.index(max(scores))
+            best_score_for_article = scores[best_idx]
             start_sentence_idx = chunks[best_idx][1]
-            
-            # For the summary, grab a slightly wider window (e.g. 5 sentences) for better context
+
             summary_start = max(0, start_sentence_idx - 1)
-            summary_end = start_sentence_idx + chunk_size + 1
+            summary_end = start_sentence_idx + 3 + 1
             best_snippet = " ".join(sentences[summary_start:summary_end])
-            
+
             a["similarity"] = best_score_for_article
             a["best_snippet"] = best_snippet
+            # Trusted sources are weighted up when RANKING which articles
+            # to trust most - a mediocre-similarity match from Reuters
+            # should generally outrank a slightly-higher-similarity match
+            # from an unknown blog. Raw similarity is still reported
+            # separately so the UI shows the true text-match strength.
+            a["ranking_score"] = best_score_for_article * a["trust_weight"]
 
-        extracted.sort(key=lambda x: x["similarity"], reverse=True)
+        extracted.sort(key=lambda x: x["ranking_score"], reverse=True)
         best_article = extracted[0]
         best_score = best_article["similarity"]
-        
-        # Stage 8 – Groq LLM Verification with Cross-Verification Data
+        trusted_sources_used = sum(1 for a in extracted[:3] if a["trust_weight"] >= 1.0)
+
+        # Stage 8 – Groq LLM Verification with Cross-Verification Data.
+        # Label each source's trustworthiness explicitly so the LLM can
+        # weigh a known, reliable outlet more heavily than an unknown site
+        # - the same way a human fact-checker would.
         context_data = ""
         for i, a in enumerate(extracted[:3]):
-            context_data += f"[Source {i+1}]: {a['best_snippet']}\n"
-            
-        llm_result = self.groq_service.verify_claim_with_context(claim, context_data)
-        
-        sources = [{"url": a["url"], "text": a["best_snippet"], "similarity": a["similarity"]} for a in extracted]
+            trust_label = "Trusted News/Reference Source" if a["trust_weight"] >= 1.0 else "Unverified Source"
+            context_data += f"[Source {i+1} - {trust_label} - {a['url']}]: {a['best_snippet']}\n"
+
+        llm_result = self.groq_service.verify_claim_with_context(
+            claim, context_data, source_count=len(extracted), trusted_count=trusted_sources_used
+        )
+
+        sources = [{"url": a["url"], "text": a["best_snippet"], "similarity": a["similarity"], "trusted": a["trust_weight"] >= 1.0} for a in extracted]
         return {
             "prediction": llm_result["prediction"],
             "confidence": llm_result["confidence"],

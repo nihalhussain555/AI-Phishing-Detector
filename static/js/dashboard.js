@@ -1,7 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
 
     const numbers =
-        document.querySelectorAll(".card h2");
+        document.querySelectorAll(".stat-card h2");
 
     numbers.forEach(counter => {
 

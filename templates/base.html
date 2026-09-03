@@ -4,11 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Phishing Detector & News Verification</title>
-    
+
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
+
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/animations.css') }}">
 </head>
 <body>
 
@@ -17,7 +19,11 @@
             <span class="gradient-text">AI Phishing Detector</span>
         </div>
 
-        <ul>
+        <button class="nav-toggle" id="navToggle" aria-label="Toggle menu" aria-expanded="false">
+            <span></span><span></span><span></span>
+        </button>
+
+        <ul id="navMenu">
             <li><a href="/">Web Scan</a></li>
             <li><a href="/verify">Fact Check</a></li>
             <li><a href="/history">History</a></li>
@@ -30,7 +36,17 @@
         {% endblock %}
     </div>
 
+    <!-- Loading Modal: shown while a scan/verification is running -->
+    <div id="loadingModal" class="modal-overlay" hidden>
+        <div class="modal-box" role="status" aria-live="polite">
+            <div class="modal-spinner"></div>
+            <h3 id="modalTitle">Scanning…</h3>
+            <p id="modalStep">Starting analysis…</p>
+        </div>
+    </div>
+
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    {% block scripts %}{% endblock %}
 
 </body>
 </html>

@@ -5,30 +5,47 @@
 <div class="container">
 
     <h1>Scan History</h1>
+    <p class="subtitle">Your most recent website scans, newest first.</p>
 
-    <table>
+    {% if db_error %}
+    <div class="error-box" style="max-width:600px;margin:20px auto 0;">
+        {{ db_error }}
+    </div>
+    {% elif not scans %}
+    <div class="empty-state">
+        <p>No scans yet. Run your first scan from the <a href="/" class="btn-link" style="margin-top:15px;">Web Scan</a> page.</p>
+    </div>
+    {% else %}
+    <div class="table-wrapper fade-in">
+        <table>
+            <tr>
+                <th>URL</th>
+                <th>Prediction</th>
+                <th>Risk Score</th>
+                <th>Scanned At</th>
+            </tr>
 
-        <tr>
-            <th>URL</th>
-            <th>Prediction</th>
-            <th>Risk Score</th>
-        </tr>
-
-        {% for scan in scans %}
-
-        <tr>
-
-            <td>{{ scan.url }}</td>
-
-            <td>{{ scan.prediction }}</td>
-
-            <td>{{ scan.risk_score }}%</td>
-
-        </tr>
-
-        {% endfor %}
-
-    </table>
+            {% for scan in scans %}
+            <tr>
+                <td class="url-cell">{{ scan.url }}</td>
+                <td>
+                    {% if scan.prediction in ["Phishing", "Dangerous"] %}
+                        <span class="status-badge danger" style="font-size:0.85rem;padding:4px 12px;">{{ scan.prediction }}</span>
+                    {% elif scan.prediction in ["Suspicious", "Unreachable", "Not Found", "No Real Website"] %}
+                        <span class="status-badge suspicious" style="font-size:0.85rem;padding:4px 12px;">{{ scan.prediction }}</span>
+                    {% elif scan.prediction == "Safe" %}
+                        <span class="status-badge safe" style="font-size:0.85rem;padding:4px 12px;">{{ scan.prediction }}</span>
+                    {% else %}
+                        <span class="status-badge suspicious" style="font-size:0.85rem;padding:4px 12px;">{{ scan.prediction }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ scan.risk_score }}%</td>
+                <td>{{ scan.created_at.strftime('%d %b %Y, %H:%M') if scan.created_at else '-' }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
 
 </div>
 
