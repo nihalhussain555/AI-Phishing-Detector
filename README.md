@@ -2,11 +2,6 @@
 
 > **An AI-powered web security and information verification platform that analyzes website URLs, domains, and online claims to identify phishing threats, suspicious domains, and potentially misleading information.**
 
-
-
-
-\
-
 ---
 
 ## 📌 Overview
@@ -25,6 +20,66 @@ The platform combines:
 * 🧠 Explainable AI
 
 Instead of providing only a simple **"Safe" or "Phishing"** result, the system provides a detailed explanation of the detected risks.
+
+---
+
+## 🚀 Live Demo
+
+🌐 **Try the AI Phishing Detector:**
+**[Live Demo](https://ai-phishing-detector-tnlt.onrender.com/)**
+
+### 🔗 Quick Test
+
+Enter a website URL into the analyzer:
+
+```text
+https://example.com
+```
+
+The system analyzes the URL and provides:
+
+```text
+┌──────────────────────────────────────┐
+│        AI WEB TRUST ANALYZER         │
+├──────────────────────────────────────┤
+│                                      │
+│ URL: https://example.com             │
+│                                      │
+│ Risk Score: 12 / 100                 │
+│ Status: 🟢 LOW RISK                  │
+│                                      │
+│ ✓ HTTPS Enabled                      │
+│ ✓ Normal URL Structure               │
+│ ✓ No Suspicious Indicators           │
+│                                      │
+└──────────────────────────────────────┘
+```
+
+### 🎥 Demo Preview
+
+Add your project demo GIF or video here:
+
+```markdown
+![Project Demo](screenshots/demo.gif)
+```
+
+Or add a YouTube/demo video:
+
+```markdown
+[▶️ Watch Project Demo](YOUR_VIDEO_URL)
+```
+
+### 📸 Application Preview
+
+```markdown
+![Dashboard](screenshots/dashboard.png)
+
+![URL Analysis](screenshots/url-analysis.png)
+
+![Domain Analysis](screenshots/domain-analysis.png)
+
+![Fact Verification](screenshots/fact-verification.png)
+```
 
 ---
 
@@ -55,13 +110,7 @@ The project is divided into three major intelligence systems:
 
 Users can enter any website URL for analysis.
 
-### Example
-
-```text
-https://example.com/login
-```
-
-The system analyzes characteristics such as:
+The system analyzes:
 
 * URL length
 * HTTPS availability
@@ -75,123 +124,45 @@ The system analyzes characteristics such as:
 * Domain similarity
 * Login-related paths
 
-### Example Result
-
-```text
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-       WEBSITE ANALYSIS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-URL:
-https://example.com/login
-
-Risk Score:
-87 / 100
-
-Status:
-🚨 HIGH RISK
-
-Detected Indicators:
-
-✓ Suspicious URL structure
-✓ Login page detected
-✓ Unusual domain
-✓ Multiple redirects
-✓ Suspicious external resources
-
-Recommendation:
-
-Do not enter passwords,
-OTP or financial information.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
 ---
 
 # 🌐 2. Website Content Analysis
 
-URL analysis alone is not always sufficient.
+The system can inspect:
 
-The system can inspect the website itself and analyze:
-
-### HTML
-
-* Forms
+* HTML forms
 * Password inputs
 * Login fields
 * Hidden fields
 * External links
 * Form actions
-
-### JavaScript
-
-* Suspicious scripts
-* Obfuscated code
-* External script sources
-* Redirect behavior
-
-### Page Structure
-
+* JavaScript
 * Iframes
-* Embedded content
-* Suspicious redirects
+* Redirect behavior
 * Credential collection patterns
-
-This provides deeper analysis than traditional URL-only classifiers.
 
 ---
 
 # 🔍 3. Domain Analysis
 
-The domain module analyzes the reputation and structure of a domain.
+The domain analyzer evaluates:
 
-### Domain Information
-
-```text
-Domain:
-example.com
-
-HTTPS:
-✓ Enabled
-
-SSL:
-✓ Valid
-
-Domain Age:
-2 Years
-
-Subdomains:
-3
-
-Redirects:
-1
-
-IP-based URL:
-No
-
-Domain Risk:
-LOW
-```
-
-### Suspicious Domain Detection
-
-The system can identify:
-
-* Newly created-looking domains
-* Suspicious TLDs
-* Excessive subdomains
+* Domain structure
+* HTTPS
+* SSL information
+* Domain age
+* Subdomains
+* Redirects
 * IP-based URLs
+* Suspicious TLDs
 * Typosquatting
 * Brand impersonation
-* Suspicious domain patterns
 
 ---
 
 # 🏷️ 4. Brand Impersonation Detection
 
-The system can identify domains that attempt to imitate legitimate brands.
-
-### Example
+Example:
 
 ```text
 URL:
@@ -209,19 +180,11 @@ Similarity:
 ⚠️ BRAND IMPERSONATION DETECTED
 ```
 
-Possible techniques include:
-
-* String similarity
-* Levenshtein distance
-* Character substitution detection
-* Suspicious keyword analysis
-* Domain structure analysis
-
 ---
 
 # 📰 5. AI Fact Verification
 
-The platform can analyze claims found in:
+The system can analyze claims from:
 
 * News articles
 * Social media
@@ -230,115 +193,7 @@ The platform can analyze claims found in:
 * Websites
 * User-provided text
 
-### Example
-
-```text
-Claim:
-
-"Scientists have confirmed that drinking
-coffee completely prevents cancer."
-```
-
-The system extracts the claim and searches available fact-checking sources.
-
-Google's Fact Check Tools API provides a Claim Search capability for finding existing fact checks, including claim text, claimant information, publisher, review URL, review date, and textual rating.
-
-### Example Result
-
-```text
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-       FACT VERIFICATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Claim:
-
-"Scientists have confirmed that
-coffee completely prevents cancer."
-
-AI Assessment:
-
-⚠️ MISLEADING
-
-Confidence:
-89%
-
-Evidence:
-
-✓ Existing fact-check found
-✓ Claim lacks supporting evidence
-✓ Scientific context is missing
-
-Source:
-Fact-check publisher
-
-Rating:
-Mostly False
-
-Recommendation:
-
-Do not share without additional
-credible evidence.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
----
-
-# 🧠 6. AI Claim Analysis
-
-The system can break a statement into individual claims.
-
-Example:
-
-```text
-Input:
-
-"Government has announced free laptops
-for every student and registration closes
-tomorrow."
-```
-
-The AI extracts:
-
-```text
-Claim 1:
-Government announced free laptops.
-
-Claim 2:
-Every student is eligible.
-
-Claim 3:
-Registration closes tomorrow.
-```
-
-Each claim can then be investigated separately.
-
----
-
-# 📚 7. Evidence-Based Verification
-
-The system should not rely only on an AI model to determine whether something is true.
-
-The verification pipeline can be:
-
-```text
-User Claim
-    ↓
-Claim Extraction
-    ↓
-Keyword / Entity Extraction
-    ↓
-Fact-Check Search
-    ↓
-Trusted Source Search
-    ↓
-Evidence Collection
-    ↓
-Evidence Comparison
-    ↓
-AI Reasoning
-    ↓
-Final Assessment
-```
+The system searches available fact-checking evidence and provides an understandable assessment.
 
 Possible results:
 
@@ -360,9 +215,31 @@ Possible results:
 
 ---
 
-# 📊 8. Unified Trust Score
+# 📚 6. Evidence-Based Verification
 
-The system can combine multiple signals into one understandable score.
+```text
+User Claim
+    ↓
+Claim Extraction
+    ↓
+Fact-Check Search
+    ↓
+Trusted Source Search
+    ↓
+Evidence Collection
+    ↓
+Evidence Comparison
+    ↓
+AI Reasoning
+    ↓
+Final Assessment
+```
+
+---
+
+# 📊 7. Unified Trust Score
+
+The system combines multiple signals into an understandable score.
 
 ```text
                     TRUST SCORE
@@ -375,32 +252,11 @@ The system can combine multiple signals into one understandable score.
              85            72            76
 ```
 
-For websites:
-
-```text
-URL Safety
-Domain Reputation
-SSL Security
-Website Content
-Redirect Behavior
-Brand Similarity
-```
-
-For claims:
-
-```text
-Fact-Check Evidence
-Source Reliability
-Claim Consistency
-Supporting Evidence
-Contradicting Evidence
-```
-
 ---
 
-# 🤖 9. Explainable AI
+# 🤖 8. Explainable AI
 
-The system explains **why** it reached a particular conclusion.
+The system explains why a website or claim received a particular result.
 
 Example:
 
@@ -418,43 +274,24 @@ Main Reasons:
 5. Domain characteristics indicate elevated risk
 ```
 
-This makes the prediction more transparent than a simple ML classification.
-
 ---
 
-# 📈 10. Security Dashboard
+# 📈 9. Security Dashboard
 
-The dashboard provides an overview of all analyses.
+The dashboard displays:
 
-```text
-┌──────────────────────────────────────┐
-│          WEB TRUST DASHBOARD         │
-├──────────────────────────────────────┤
-│                                      │
-│ Total Scans              1,248       │
-│ Phishing Detected          327       │
-│ Suspicious Domains         184       │
-│ Facts Verified              492      │
-│ Unverified Claims           106      │
-│                                      │
-└──────────────────────────────────────┘
-```
-
-Dashboard sections:
-
-* URL scans
-* Domain scans
+* Total scans
+* Phishing detections
+* Suspicious domains
 * Fact checks
-* Threat statistics
+* Unverified claims
 * Recent activity
 * Risk distribution
 * Scan history
 
 ---
 
-# 📝 11. Detailed Analysis Report
-
-Each scan generates a structured report.
+# 📝 10. Detailed Analysis Reports
 
 ### Website Report
 
@@ -484,24 +321,13 @@ AI explanation
 
 ---
 
-# 🗄️ 12. Scan History
+# 🗄️ 11. Scan History
 
-MongoDB can store:
+MongoDB stores analysis history including:
 
-```text
-User
-    │
-    ├── URL Scans
-    ├── Domain Scans
-    ├── Fact Checks
-    └── Threat Reports
-```
-
-Users can view:
-
-* Previous URLs
-* Previous domain analyses
-* Previous claims
+* URLs
+* Domains
+* Claims
 * Results
 * Risk scores
 * Dates
@@ -548,13 +374,6 @@ Users can view:
 * Claim extraction
 * Similarity analysis
 * Explainable AI
-
-## External Intelligence
-
-* Fact-checking sources
-* Domain information
-* SSL information
-* Web security intelligence
 
 ---
 
@@ -612,38 +431,15 @@ Users can view:
 AI-Phishing-Detector/
 │
 ├── frontend/
-│   ├── index.html
-│   ├── style.css
-│   ├── script.js
-│   └── assets/
-│
 ├── backend/
-│   ├── app.py
-│   ├── routes/
-│   │   ├── url_routes.py
-│   │   ├── domain_routes.py
-│   │   └── factcheck_routes.py
-│   │
-│   ├── services/
-│   │   ├── url_analyzer.py
-│   │   ├── domain_analyzer.py
-│   │   ├── website_analyzer.py
-│   │   └── factcheck_service.py
-│   │
-│   ├── models/
-│   └── utils/
-│
 ├── ml/
-│   ├── train_model.py
-│   ├── feature_extractor.py
-│   ├── predictor.py
-│   └── models/
-│       └── phishing_model.pkl
-│
 ├── dataset/
-│   └── phishing_dataset.csv
-│
 ├── screenshots/
+│   ├── dashboard.png
+│   ├── url-analysis.png
+│   ├── domain-analysis.png
+│   ├── fact-verification.png
+│   └── demo.gif
 │
 ├── requirements.txt
 ├── .env.example
@@ -655,17 +451,10 @@ AI-Phishing-Detector/
 
 # ⚙️ Installation
 
-## Clone Repository
-
 ```bash
 git clone https://github.com/YOUR_USERNAME/AI-Phishing-Detector.git
-
 cd AI-Phishing-Detector
-```
 
-## Create Virtual Environment
-
-```bash
 python -m venv venv
 ```
 
@@ -681,7 +470,7 @@ venv\Scripts\activate
 source venv/bin/activate
 ```
 
-## Install Dependencies
+Install dependencies:
 
 ```bash
 pip install -r requirements.txt
@@ -699,7 +488,7 @@ SECRET_KEY=your_secret_key
 FACTCHECK_API_KEY=your_api_key
 ```
 
-Keep secrets outside GitHub and never commit your `.env` file.
+**Never commit `.env` to GitHub.**
 
 ---
 
@@ -710,96 +499,6 @@ python app.py
 ```
 
 Open the application in your browser.
-
----
-
-# 🔬 Machine Learning Pipeline
-
-```text
-Phishing Dataset
-       ↓
-Data Cleaning
-       ↓
-Feature Engineering
-       ↓
-Train/Test Split
-       ↓
-Model Training
-       ↓
-Model Evaluation
-       ↓
-Best Model
-       ↓
-Joblib Serialization
-       ↓
-Flask API
-       ↓
-Real-Time Prediction
-```
-
----
-
-# 📊 Model Evaluation
-
-The project can evaluate models using:
-
-* Accuracy
-* Precision
-* Recall
-* F1 Score
-* ROC-AUC
-* Confusion Matrix
-
-Example:
-
-```text
-Model                  F1 Score
-
-Random Forest            0.94
-XGBoost                  0.96
-Logistic Regression      0.89
-```
-
-> Replace these example values with your actual model results.
-
----
-
-# 🔄 Fact Verification Workflow
-
-```text
-User enters claim
-        ↓
-AI extracts claim
-        ↓
-Search fact-check databases
-        ↓
-Retrieve existing reviews
-        ↓
-Analyze publisher/source
-        ↓
-Compare evidence
-        ↓
-Generate verdict
-        ↓
-Show supporting sources
-```
-
-The Google Fact Check Tools API supports searching fact-checked claims and can return associated ClaimReview information, including publisher, URL, review date, and textual rating.
-
----
-
-# 🎯 Project Objectives
-
-* Detect phishing websites.
-* Analyze suspicious URLs.
-* Analyze domain-level risks.
-* Identify possible brand impersonation.
-* Inspect website security indicators.
-* Verify online claims against available fact-check evidence.
-* Provide explainable AI results.
-* Generate understandable risk scores.
-* Maintain scan history.
-* Help users make safer decisions online.
 
 ---
 
@@ -822,6 +521,21 @@ The Google Fact Check Tools API supports searching fact-checked claims and can r
 * [ ] Real-time notifications
 * [ ] Deep Learning models
 * [ ] Transformer-based claim verification
+
+---
+
+# 🎯 Project Objectives
+
+* Detect phishing websites.
+* Analyze suspicious URLs.
+* Analyze domain-level risks.
+* Identify possible brand impersonation.
+* Inspect website security indicators.
+* Verify online claims against available evidence.
+* Provide explainable AI results.
+* Generate understandable risk scores.
+* Maintain scan history.
+* Help users make safer decisions online.
 
 ---
 
