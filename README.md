@@ -53,34 +53,6 @@ The system analyzes the URL and provides:
 │ ✓ No Suspicious Indicators           │
 │                                      │
 └──────────────────────────────────────┘
-```
-
-### 🎥 Demo Preview
-
-Add your project demo GIF or video here:
-
-```markdown
-![Project Demo](screenshots/demo.gif)
-```
-
-Or add a YouTube/demo video:
-
-```markdown
-[▶️ Watch Project Demo](YOUR_VIDEO_URL)
-```
-
-### 📸 Application Preview
-
-```markdown
-![Dashboard](screenshots/dashboard.png)
-
-![URL Analysis](screenshots/url-analysis.png)
-
-![Domain Analysis](screenshots/domain-analysis.png)
-
-![Fact Verification](screenshots/fact-verification.png)
-```
-
 ---
 
 # 🎯 Core Modules
