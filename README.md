@@ -53,6 +53,8 @@ The system analyzes the URL and provides:
 │ ✓ No Suspicious Indicators           │
 │                                      │
 └──────────────────────────────────────┘
+```
+
 ---
 
 # 🎯 Core Modules
